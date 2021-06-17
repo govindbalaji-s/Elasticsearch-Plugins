@@ -1,9 +1,10 @@
 package example;
 
-import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
-import org.apache.http.util.EntityUtils;
+//import org.apache.http.HttpHost;
+//import org.apache.http.entity.ContentType;
+//import org.apache.http.nio.entity.NStringEntity;
+//import org.apache.http.util.EntityUtils;
+//import org.apache.http.util.EntityUtils;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetResponse;
@@ -24,6 +25,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.*;
 
 public class MyJoinScript extends AggregationScript {
@@ -32,8 +37,9 @@ public class MyJoinScript extends AggregationScript {
     LeafReaderContext leafCtx;
     List<Object> values = new LinkedList<>();
     Set<Integer> readDocs = new HashSet<Integer>();
+//    static RestClient client;
 //    static RestHighLevelClient client;
-    static RestClient client;
+//    HttpClient client;
 
     public MyJoinScript(String fkField, String indexField, String valueField, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext leafReaderContext) {
         super(params, searchLookup, leafReaderContext);
@@ -42,12 +48,15 @@ public class MyJoinScript extends AggregationScript {
         this.valueField = valueField;
         this.searchLookup = searchLookup;
         this.leafCtx = leafReaderContext;
-        if(client == null) {
-//             client =  new RestHighLevelClient(RestClient.builder(new HttpHost("localhost", 9200, "http"))
-//                        );
-            client = RestClient.builder(new HttpHost("localhost", 9200, "http"))
-                   .build();
-        }
+//        if(client == null) {
+////             client =  new RestHighLevelClient(RestClient.builder(new HttpHost("localhost", 9200, "http"))
+////                        );
+////            client = RestClient.builder(new HttpHost("localhost", 9200, "http"))
+////                   .build();
+//            client = HttpClient.newBuilder()
+//                    .version(HttpClient.Version.HTTP_2)
+//                    .build();
+//        }
     }
 
     @Override
@@ -66,7 +75,7 @@ public class MyJoinScript extends AggregationScript {
 //        ans = 0;
         List<String> fks = new LinkedList<String>();
         for(int i = 0; i < scriptDocValues.size(); i++)
-            fks.add((String)scriptDocValues.get(i));
+            fks.add(scriptDocValues.get(i).toString());
         fetchExternal(fks);
     }
 
@@ -75,17 +84,29 @@ public class MyJoinScript extends AggregationScript {
 //        for(String fk : fks) {
 //            request.add(new MultiGetRequest.Item(indexField, fk));
 //        }
-        Request request = new Request("GET", "/"+indexField+"/_mget");
+
+//        Request request = new Request("GET", "/"+indexField+"/_mget");
+        HttpClient client = HttpClient.newBuilder()
+                    .version(HttpClient.Version.HTTP_2)
+                    .build();
         JSONArray ids = new JSONArray();
         for(String fk : fks) {
             ids.put(new JSONObject().put("_id", fk).put("_source", valueField));
         }
-        request.setJsonEntity(new JSONObject().put("docs", ids).toString());
+        String reqBody = new JSONObject().put("docs", ids).toString();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:9200"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(reqBody))
+                .build();
+//        request.setJsonEntity();
 
 
         try {
-            Response response = client.performRequest(request);
-            JSONObject responseBody = new JSONObject(EntityUtils.toString(response.getEntity()));
+//            Response response = client.performRequest(request);
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+//            JSONObject responseBody = new JSONObject(EntityUtils.toString(response.getEntity()));
+            JSONObject responseBody = new JSONObject(response.body());
             JSONArray docs = responseBody.getJSONArray("docs");
             for(int i = 0; i < docs.length(); i++) {
                 values.add(docs.getJSONObject(i)
@@ -100,7 +121,7 @@ public class MyJoinScript extends AggregationScript {
 //                    values.add(grsp.getSourceAsMap().get(valueField));
 //                }
 //            }
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new ElasticsearchException("can't fetch external");
         }
     }
