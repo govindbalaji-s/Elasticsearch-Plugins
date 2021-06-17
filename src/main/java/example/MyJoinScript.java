@@ -5,30 +5,23 @@ package example;
 //import org.apache.http.nio.entity.NStringEntity;
 //import org.apache.http.util.EntityUtils;
 //import org.apache.http.util.EntityUtils;
+import org.apache.http.HttpHost;
+import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.MultiGetRequest;
-import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.*;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.net.SocketPermission;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.*;
 
 public class MyJoinScript extends AggregationScript {
@@ -37,7 +30,9 @@ public class MyJoinScript extends AggregationScript {
     LeafReaderContext leafCtx;
     List<Object> values = new LinkedList<>();
     Set<Integer> readDocs = new HashSet<Integer>();
-//    static RestClient client;
+
+    private static final Logger logger = LogManager.getLogger(MyJoinScript.class);
+    static RestClient client;
 //    static RestHighLevelClient client;
 //    HttpClient client;
 
@@ -48,15 +43,15 @@ public class MyJoinScript extends AggregationScript {
         this.valueField = valueField;
         this.searchLookup = searchLookup;
         this.leafCtx = leafReaderContext;
-//        if(client == null) {
+        if(client == null) {
 ////             client =  new RestHighLevelClient(RestClient.builder(new HttpHost("localhost", 9200, "http"))
 ////                        );
-////            client = RestClient.builder(new HttpHost("localhost", 9200, "http"))
-////                   .build();
+            client = RestClient.builder(new HttpHost("localhost", 9200, "http"))
+                   .build();
 //            client = HttpClient.newBuilder()
 //                    .version(HttpClient.Version.HTTP_2)
 //                    .build();
-//        }
+        }
     }
 
     @Override
@@ -85,35 +80,39 @@ public class MyJoinScript extends AggregationScript {
 //            request.add(new MultiGetRequest.Item(indexField, fk));
 //        }
 
-//        Request request = new Request("GET", "/"+indexField+"/_mget");
-        HttpClient client = HttpClient.newBuilder()
-                    .version(HttpClient.Version.HTTP_2)
-                    .build();
+        Request request = new Request("GET", "/"+indexField+"/_mget");
+//        HttpClient client = HttpClient.newBuilder()
+//                    .version(HttpClient.Version.HTTP_2)
+//                    .build();
         JSONArray ids = new JSONArray();
         for(String fk : fks) {
             ids.put(new JSONObject().put("_id", fk).put("_source", valueField));
         }
         String reqBody = new JSONObject().put("docs", ids).toString();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:9200"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(reqBody))
-                .build();
-//        request.setJsonEntity();
+//        HttpRequest request = HttpRequest.newBuilder()
+//                .uri(URI.create("http://localhost:9200"))
+//                .header("Content-Type", "application/json")
+//                .POST(HttpRequest.BodyPublishers.ofString(reqBody))
+//                .build();
+        request.setJsonEntity(reqBody);
+        logger.info(indexField);
+        logger.info(reqBody);
+        SecurityManager sm = System.getSecurityManager();
+        if(sm != null) {
+            sm.checkPermission(new SocketPermission("localhost:9200",
+                    "connect,resolve"));
+        }
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            try {
+                Response response = client.performRequest(request);
+                JSONObject responseBody = new JSONObject(EntityUtils.toString(response.getEntity()));
+                JSONArray docs = responseBody.getJSONArray("docs");
+                for(int i = 0; i < docs.length(); i++) {
+                    values.add(docs.getJSONObject(i)
+                            .getJSONObject("_source")
+                            .getString(valueField));
 
-
-        try {
-//            Response response = client.performRequest(request);
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-//            JSONObject responseBody = new JSONObject(EntityUtils.toString(response.getEntity()));
-            JSONObject responseBody = new JSONObject(response.body());
-            JSONArray docs = responseBody.getJSONArray("docs");
-            for(int i = 0; i < docs.length(); i++) {
-                values.add(docs.getJSONObject(i)
-                                    .getJSONObject("_source")
-                                    .getString(valueField));
-
-            }
+                }
 //            MultiGetResponse rsp = client.mget(request, RequestOptions.DEFAULT);
 //            for(MultiGetItemResponse irsp : rsp.getResponses()) {
 //                GetResponse grsp = irsp.getResponse();
@@ -121,9 +120,11 @@ public class MyJoinScript extends AggregationScript {
 //                    values.add(grsp.getSourceAsMap().get(valueField));
 //                }
 //            }
-        } catch (Exception e) {
-            throw new ElasticsearchException("can't fetch external");
-        }
+            } catch (Exception e) {
+                throw new ElasticsearchException("can't fetch external" + e.getMessage());
+            }
+            return null;
+        });
     }
 
     private static String makeRequest(List<String> fks) {

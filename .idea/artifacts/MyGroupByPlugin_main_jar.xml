@@ -1,0 +1,19 @@
+<component name="ArtifactManager">
+  <artifact name="MyGroupByPlugin.main:jar">
+    <output-path>$USER_HOME$/Documents/elasticsearch/build/distribution/local/elasticsearch-7.11.0-SNAPSHOT/plugins/my-group-by</output-path>
+    <root id="root">
+      <element id="archive" name="MyGroupByPlugin.main.jar">
+        <element id="module-output" name="MyGroupByPlugin.main" />
+      </element>
+      <element id="library" level="project" name="Gradle: org.apache.httpcomponents:httpasyncclient:4.1.4" />
+      <element id="library" level="project" name="Gradle: org.apache.httpcomponents:httpcore-nio:4.4.12" />
+      <element id="library" level="project" name="Gradle: org.json:json:20210307" />
+      <element id="library" level="project" name="Gradle: commons-codec:commons-codec:1.11" />
+      <element id="library" level="project" name="Gradle: commons-logging:commons-logging:1.1.3" />
+      <element id="library" level="project" name="Gradle: org.apache.httpcomponents:httpclient:4.5.10" />
+      <element id="library" level="project" name="Gradle: org.elasticsearch.client:elasticsearch-rest-client:7.11.0" />
+      <element id="library" level="project" name="Gradle: org.apache.httpcomponents:httpcore:4.4.12" />
+      <element id="file-copy" path="$PROJECT_DIR$/src/main/plugin-metadata/plugin-security.policy" />
+    </root>
+  </artifact>
+</component>

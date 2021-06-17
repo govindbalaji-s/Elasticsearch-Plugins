@@ -1,5 +1,5 @@
 <component name="ArtifactManager">
-  <artifact name="plugin descriptor">
+  <artifact build-on-make="true" name="plugin descriptor">
     <output-path>$USER_HOME$/Documents/elasticsearch/build/distribution/local/elasticsearch-7.11.0-SNAPSHOT/plugins/my-group-by</output-path>
     <root id="root">
       <element id="file-copy" path="$PROJECT_DIR$/src/main/resources/plugin-descriptor.properties" />
