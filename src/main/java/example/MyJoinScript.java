@@ -29,7 +29,7 @@ public class MyJoinScript extends AggregationScript {
     LeafReaderContext leafCtx;
     List<Object> values = new LinkedList<>();
     Set<Integer> readDocs = new HashSet<Integer>();
-    static RestClient client;
+    static RestHighLevelClient client;
 
     public MyJoinScript(String fkField, String indexField, String valueField, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext leafReaderContext) {
         super(params, searchLookup, leafReaderContext);
@@ -39,8 +39,8 @@ public class MyJoinScript extends AggregationScript {
         this.searchLookup = searchLookup;
         this.leafCtx = leafReaderContext;
         if(client == null)
-             client =  RestClient.builder(new HttpHost("localhost", 9200, "http"))
-                        .build();
+             client =  new RestHighLevelClient(RestClient.builder(new HttpHost("localhost", 9200, "http"))
+                        );
     }
 
     @Override
