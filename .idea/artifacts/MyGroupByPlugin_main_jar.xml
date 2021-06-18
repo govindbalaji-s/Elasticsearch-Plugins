@@ -13,7 +13,7 @@
       <element id="library" level="project" name="Gradle: org.apache.httpcomponents:httpclient:4.5.10" />
       <element id="library" level="project" name="Gradle: org.elasticsearch.client:elasticsearch-rest-client:7.11.0" />
       <element id="library" level="project" name="Gradle: org.apache.httpcomponents:httpcore:4.4.12" />
-      <element id="file-copy" path="$PROJECT_DIR$/src/main/plugin-metadata/plugin-security.policy" />
+      <element id="file-copy" path="$PROJECT_DIR$/src/main/resources/plugin-security.policy" />
     </root>
   </artifact>
 </component>

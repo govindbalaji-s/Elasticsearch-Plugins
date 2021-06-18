@@ -69,6 +69,7 @@ public class MyJoinScript extends AggregationScript {
         ScriptDocValues scriptDocValues = MyGroupByPlugin.safeGetScriptDocValues(lookup.doc(), fkField);
 //        ans = 0;
         List<String> fks = new LinkedList<String>();
+        values.clear();
         for(int i = 0; i < scriptDocValues.size(); i++)
             fks.add(scriptDocValues.get(i).toString());
         fetchExternal(fks);
@@ -97,11 +98,11 @@ public class MyJoinScript extends AggregationScript {
         request.setJsonEntity(reqBody);
         logger.info(indexField);
         logger.info(reqBody);
-        SecurityManager sm = System.getSecurityManager();
-        if(sm != null) {
-            sm.checkPermission(new SocketPermission("localhost:9200",
-                    "connect,resolve"));
-        }
+//        SecurityManager sm = System.getSecurityManager();
+//        if(sm != null) {
+//            sm.checkPermission(new SocketPermission("localhost:9200",
+//                    "connect,resolve"));
+//        }
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
                 Response response = client.performRequest(request);
@@ -121,7 +122,7 @@ public class MyJoinScript extends AggregationScript {
 //                }
 //            }
             } catch (Exception e) {
-                throw new ElasticsearchException("can't fetch external" + e.getMessage());
+                throw new ElasticsearchException("can't fetch external" + e.getMessage(), e );
             }
             return null;
         });
@@ -142,10 +143,6 @@ public class MyJoinScript extends AggregationScript {
 
     @Override
     public Object execute() {
-        try {
-            return values;
-        } finally{
-            values.clear();
-        }
+        return values;
     }
 }
