@@ -7,6 +7,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.*;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -23,7 +24,10 @@ public class MyJoinScript extends AggregationScript {
     String fkField, indexField, valueField;
     SearchLookup searchLookup;
     LeafReaderContext leafCtx;
+//    List<Object> values;
+    List<String> fks;
     List<Object> values = new LinkedList<>();
+//    BigArrays bigArrays;
 
     private static final Logger logger = LogManager.getLogger(MyJoinScript.class);
     static RestClient client;
@@ -39,6 +43,9 @@ public class MyJoinScript extends AggregationScript {
             client = RestClient.builder(new HttpHost("localhost", 9200, "http"))
                    .build();
         }
+//        BigArrays.NON_RECYCLING_INSTANCE.b
+//        bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+//        values = bigArrays.newObjectArray(2)
     }
 
     @Override
@@ -55,22 +62,20 @@ public class MyJoinScript extends AggregationScript {
         LeafSearchLookup lookup = searchLookup.getLeafSearchLookup(leafCtx);
         lookup.setDocument(docid);
         ScriptDocValues scriptDocValues = MyGroupByPlugin.safeGetScriptDocValues(lookup.doc(), fkField);
-        List<String> fks = new LinkedList<String>();
+        fks = new LinkedList<String>();
         values.clear();
         for(int i = 0; i < scriptDocValues.size(); i++)
             fks.add(scriptDocValues.get(i).toString());
-        fetchExternal(fks);
     }
 
     /**
      * Fetch valueField from documents in external index, whose id is in fks
-     * @param fks list of id
      */
-    private void fetchExternal(List<String> fks) {
+    private Object fetchExternal() {
         Request request = new Request("GET", "/"+indexField+"/_mget");
         String reqBody = makeMultiGetRequest(fks);
         request.setJsonEntity(reqBody);
-
+        List<Object> values = new ArrayList<>(2);
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
                 Response response = client.performRequest(request);
@@ -88,6 +93,7 @@ public class MyJoinScript extends AggregationScript {
             }
             return null;
         });
+        return values;
     }
 
     /**
@@ -96,15 +102,16 @@ public class MyJoinScript extends AggregationScript {
      * @return request string
      */
     private String makeMultiGetRequest(List<String> fks) {
+//        BigArrays.NON_RECYCLING_INSTANCE.
         JSONArray ids = new JSONArray();
         for(String fk : fks) {
-            ids.put(new JSONObject().put("_id", fk).put("_source", valueField));
+            ids.put(new JSONObject().put("_id", fk));
         }
         return new JSONObject().put("docs", ids).toString();
     }
 
     @Override
     public Object execute() {
-        return values;
+        return fetchExternal();
     }
 }
