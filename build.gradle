@@ -15,7 +15,7 @@ repositories {
 
 dependencies {
 //    compileOnly group: 'org.elasticsearch', name: 'elasticsearch', version: '7.11.1'
-        compile fileTree(dir: 'libs', include: ['*.jar'])
+        compile fileTree(dir: '/Users/govindbalajis/Documents/elasticsearch/build/distribution/local/elasticsearch-7.11.0-SNAPSHOT/lib', include: ['*.jar'])
 //    compile files('libs/elasticsearch-x-content-7.11.0-SNAPSHOT.jar')
 //    compile files('libs/HdrHistogram-2.1.9.jar')
 //    compile files('libs/log4j-core-2.11.1.jar')

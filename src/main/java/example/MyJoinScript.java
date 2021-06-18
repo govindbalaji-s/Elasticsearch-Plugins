@@ -4,12 +4,16 @@ import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.lookup.EnvironmentLookup;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.*;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.json.JSONArray;
@@ -28,12 +32,16 @@ public class MyJoinScript extends AggregationScript {
     List<String> fks;
     List<Object> values = new LinkedList<>();
 //    BigArrays bigArrays;
+    Client clt;
+    CircuitBreaker requestCB;
 
     private static final Logger logger = LogManager.getLogger(MyJoinScript.class);
     static RestClient client;
 
-    public MyJoinScript(String fkField, String indexField, String valueField, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext leafReaderContext) {
+    public MyJoinScript(Client clt, CircuitBreaker requestCB, String fkField, String indexField, String valueField, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext leafReaderContext) {
         super(params, searchLookup, leafReaderContext);
+        this.clt = clt;
+        this.requestCB = requestCB;
         this.fkField = fkField;
         this.indexField = indexField;
         this.valueField = valueField;
@@ -59,6 +67,10 @@ public class MyJoinScript extends AggregationScript {
      * @param docid
      */
     void fetch(int docid) {
+        // The outer "terms" aggregator estimates 5kB per bucket.
+        // Estimate the same amount more.
+        requestCB.addEstimateBytesAndMaybeBreak(AggregatorBase.DEFAULT_WEIGHT, "<script my-script>");
+
         LeafSearchLookup lookup = searchLookup.getLeafSearchLookup(leafCtx);
         lookup.setDocument(docid);
         ScriptDocValues scriptDocValues = MyGroupByPlugin.safeGetScriptDocValues(lookup.doc(), fkField);
@@ -112,6 +124,7 @@ public class MyJoinScript extends AggregationScript {
 
     @Override
     public Object execute() {
+        requestCB.addWithoutBreaking(-AggregatorBase.DEFAULT_WEIGHT);
         return fetchExternal();
     }
 }
