@@ -19,6 +19,9 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.lang.ref.Cleaner;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -28,6 +31,7 @@ import static java.util.Collections.singletonList;
 public class MyGroupByPlugin extends Plugin implements SearchPlugin, ScriptPlugin, CircuitBreakerServicePlugin {
     Client client;
     CircuitBreakerService circuitBreakerService;
+//    public final static Cleaner cleaner = AccessController.doPrivileged((PrivilegedAction<Cleaner>) Cleaner::create);
     @Override
     public List<AggregationSpec> getAggregations() {
         return new ArrayList<AggregationSpec>(Arrays.asList(
@@ -47,14 +51,30 @@ public class MyGroupByPlugin extends Plugin implements SearchPlugin, ScriptPlugi
 
             @Override
             public <FactoryType> FactoryType compile(String name, String code, ScriptContext<FactoryType> scriptContext, Map<String, String> params) {
-                if(code.equals("my-sum")) {
-                    FieldScript.Factory factory = new MySumScriptFactory();
-                    return scriptContext.factoryClazz.cast(factory);
-                } else if(code.equals("my-join")) {
-                    AggregationScript.Factory factory = new MyJoinScriptFactory(client, circuitBreakerService);
-                    return scriptContext.factoryClazz.cast(factory);
+                ScriptFactory factory = null;
+                switch(code) {
+                    case "my-sum":
+                        factory = new MySumScriptFactory();
+                        break;
+                    case "my-join":
+                        factory = new MyJoinScriptFactory(client, circuitBreakerService);
+                        break;
+                    case "my-expand-init":
+                        factory = new MemorySpamAgg.InitScriptFactory(circuitBreakerService);
+                        break;
+                    case "my-expand-map":
+                        factory = new MemorySpamAgg.MapScriptFactory(circuitBreakerService);
+                        break;
+                    case "my-expand-combine":
+                        factory = new MemorySpamAgg.CombineScriptFactory();
+                        break;
+                    case "my-expand-reduce":
+                        factory = new MemorySpamAgg.ReduceScriptFactory(circuitBreakerService);
+                        break;
+                    default:
+                        throw new IllegalArgumentException("unknown script name");
                 }
-                throw new IllegalArgumentException("unknown script name");
+                return scriptContext.factoryClazz.cast(factory);
             }
 
             @Override

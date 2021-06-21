@@ -44,6 +44,7 @@ public class MyJoinScript extends AggregationScript {
 
     private static final Logger logger = LogManager.getLogger(MyJoinScript.class);
     static RestClient client;
+    FetchSourceContext fetchSourceContext;
 
     public MyJoinScript(Client clt, CircuitBreaker requestCB, String fkField, String indexField, String valueField, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext leafReaderContext) {
         super(params, searchLookup, leafReaderContext);
@@ -58,6 +59,8 @@ public class MyJoinScript extends AggregationScript {
             client = RestClient.builder(new HttpHost("localhost", 9200, "http"))
                    .build();
         }
+        fetchSourceContext = new FetchSourceContext(true, new String[]{valueField}, Strings.EMPTY_ARRAY);
+
 //        BigArrays.NON_RECYCLING_INSTANCE.b
 //        bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
 //        values = bigArrays.newObjectArray(2)
@@ -76,7 +79,7 @@ public class MyJoinScript extends AggregationScript {
     void fetch(int docid) {
         // The outer "terms" aggregator estimates 5kB per bucket.
         // Estimate the same amount more.
-        requestCB.addEstimateBytesAndMaybeBreak(AggregatorBase.DEFAULT_WEIGHT, "<script my-script>");
+//        requestCB.addEstimateBytesAndMaybeBreak(2*AggregatorBase.DEFAULT_WEIGHT, "<script my-script>");
 
         LeafSearchLookup lookup = searchLookup.getLeafSearchLookup(leafCtx);
         lookup.setDocument(docid);
@@ -92,7 +95,6 @@ public class MyJoinScript extends AggregationScript {
      */
     private Object fetchExternal() {
         MultiGetRequest request = new MultiGetRequest();
-        FetchSourceContext fetchSourceContext = new FetchSourceContext(true, new String[]{valueField}, Strings.EMPTY_ARRAY);
         for(String fk : fks) {
             request.add(new MultiGetRequest.Item(indexField, fk).fetchSourceContext(fetchSourceContext));
         }
@@ -127,7 +129,11 @@ public class MyJoinScript extends AggregationScript {
 
     @Override
     public Object execute() {
-        requestCB.addWithoutBreaking(-AggregatorBase.DEFAULT_WEIGHT);
-        return fetchExternal();
+        try {
+            return fetchExternal();
+        }
+        finally {
+//            requestCB.addWithoutBreaking(-2*AggregatorBase.DEFAULT_WEIGHT);
+        }
     }
 }
