@@ -12,17 +12,24 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.*;
 
 public class MemorySpamAgg{
+    // Assuming each value takes <= 100 bytes
     static final long DEFAULT_WEIGHT = 100;
     static public class InitScriptFactory implements ScriptedMetricAggContexts.InitScript.Factory {
         CircuitBreaker circuitBreaker;
         InitScriptFactory(CircuitBreakerService cbs) {
             circuitBreaker = cbs.getBreaker(CircuitBreaker.REQUEST);
         }
+
         @Override
         public ScriptedMetricAggContexts.InitScript newInstance(Map<String, Object> params, Map<String, Object> state) {
             return new ScriptedMetricAggContexts.InitScript(params, state) {
                 @Override
                 public void execute() {
+                    /*
+                    state["vals"] is the ArrayList of all values of params["field"] field in this shard.
+                    state["vals-size"] - size of state["vals"], so that it's size can be known without referencing
+                                          the ArrayList. This is needed to reclaim CB.
+                     */
                     state.put("vals", new ArrayList<Object>(){
                         @Override
                         public void finalize() {
@@ -32,11 +39,6 @@ public class MemorySpamAgg{
                         }
                     });
                     state.put("vals-size", 0L);
-//                    MyGroupByPlugin.cleaner.register(state.get("vals"), () -> {
-//                        long sz = XContentMapValues.nodeIntegerValue(state.get("vals-size"), 0);
-//                        circuitBreaker.addWithoutBreaking(-sz * DEFAULT_WEIGHT);
-//                        state.put("vals-size", 0);
-//                    });
                 }
             };
         }
@@ -47,6 +49,7 @@ public class MemorySpamAgg{
         MapScriptFactory(CircuitBreakerService cbs) {
             circuitBreaker = cbs.getBreaker(CircuitBreaker.REQUEST);
         }
+
         @Override
         public ScriptedMetricAggContexts.MapScript.LeafFactory newFactory(Map<String, Object> params, Map<String, Object> state, SearchLookup searchLookup) {
             return leafReaderContext -> new ScriptedMetricAggContexts.MapScript(params, state, searchLookup, leafReaderContext) {
@@ -74,6 +77,10 @@ public class MemorySpamAgg{
             };
         }
 
+        /**
+         * If required can return a repeated array to increase memory usage.
+         * Right now, the value is repeated only once.
+         */
         private Collection<?> expand(Object value) {
             return Collections.singleton(value);
         }
