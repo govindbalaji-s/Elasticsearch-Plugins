@@ -7,13 +7,20 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.lookup.EnvironmentLookup;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.*;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.AggregatorBase;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.json.JSONArray;
@@ -84,27 +91,23 @@ public class MyJoinScript extends AggregationScript {
      * Fetch valueField from documents in external index, whose id is in fks
      */
     private Object fetchExternal() {
-        Request request = new Request("GET", "/"+indexField+"/_mget");
-        String reqBody = makeMultiGetRequest(fks);
-        request.setJsonEntity(reqBody);
+        MultiGetRequest request = new MultiGetRequest();
+        FetchSourceContext fetchSourceContext = new FetchSourceContext(true, new String[]{valueField}, Strings.EMPTY_ARRAY);
+        for(String fk : fks) {
+            request.add(new MultiGetRequest.Item(indexField, fk).fetchSourceContext(fetchSourceContext));
+        }
         List<Object> values = new ArrayList<>(2);
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
-                Response response = client.performRequest(request);
-                JSONObject responseBody = new JSONObject(EntityUtils.toString(response.getEntity()));
-                JSONArray docs = responseBody.getJSONArray("docs");
-
-                for(int i = 0; i < docs.length(); i++) {
-                    values.add(docs.getJSONObject(i)
-                            .getJSONObject("_source")
-                            .getString(valueField));
-
+                MultiGetResponse response = clt.multiGet(request).actionGet();
+                for(MultiGetItemResponse irsp : response.getResponses()) {
+                    GetResponse grsp = irsp.getResponse();
+                    if(grsp.isExists() && grsp.getSourceAsMap() != null && grsp.getSourceAsMap().containsKey(valueField)) {
+                        values.add(grsp.getSourceAsMap().get(valueField));
+                    }
                 }
             } catch (Exception e) {
                 throw new ElasticsearchException("can't fetch external" + e.getMessage(), e );
             }
-            return null;
-        });
         return values;
     }
 
