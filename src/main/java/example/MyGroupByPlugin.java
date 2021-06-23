@@ -4,6 +4,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -15,22 +16,17 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.*;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.lang.ref.Cleaner;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.*;
 import java.util.function.Supplier;
 
-import static java.util.Collections.singletonList;
-
 
 public class MyGroupByPlugin extends Plugin implements SearchPlugin, ScriptPlugin, CircuitBreakerServicePlugin {
-    Client client;
+    Client esClient;
     CircuitBreakerService circuitBreakerService;
+    BigArrays bigArrays;
 //    public final static Cleaner cleaner = AccessController.doPrivileged((PrivilegedAction<Cleaner>) Cleaner::create);
     @Override
     public List<AggregationSpec> getAggregations() {
@@ -57,19 +53,19 @@ public class MyGroupByPlugin extends Plugin implements SearchPlugin, ScriptPlugi
                         factory = new MySumScriptFactory();
                         break;
                     case "my-join":
-                        factory = new MyJoinScriptFactory(client, circuitBreakerService);
+                        factory = new MyJoinScriptFactory(esClient, circuitBreakerService);
                         break;
                     case "my-expand-init":
-                        factory = new MemorySpamAgg.InitScriptFactory(circuitBreakerService);
+                        factory = new MemorySpamAgg.InitScriptFactory(circuitBreakerService, bigArrays);
                         break;
                     case "my-expand-map":
-                        factory = new MemorySpamAgg.MapScriptFactory(circuitBreakerService);
+                        factory = new MemorySpamAgg.MapScriptFactory(circuitBreakerService, bigArrays);
                         break;
                     case "my-expand-combine":
-                        factory = new MemorySpamAgg.CombineScriptFactory();
+                        factory = new MemorySpamAgg.CombineScriptFactory(circuitBreakerService, bigArrays);
                         break;
                     case "my-expand-reduce":
-                        factory = new MemorySpamAgg.ReduceScriptFactory(circuitBreakerService);
+                        factory = new MemorySpamAgg.ReduceScriptFactory(circuitBreakerService, bigArrays);
                         break;
                     default:
                         throw new IllegalArgumentException("unknown script name");
@@ -89,7 +85,7 @@ public class MyGroupByPlugin extends Plugin implements SearchPlugin, ScriptPlugi
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool, ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry, Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        this.client = client;
+        this.esClient = client;
         return Collections.emptyList();
     }
 
@@ -103,5 +99,10 @@ public class MyGroupByPlugin extends Plugin implements SearchPlugin, ScriptPlugi
     @Override
     public void setCircuitBreakerService(CircuitBreakerService circuitBreakerService) {
         this.circuitBreakerService = circuitBreakerService;
+    }
+
+    @Override
+    public void setBigArrays(BigArrays bigArrays) {
+        this.bigArrays = bigArrays;
     }
 }

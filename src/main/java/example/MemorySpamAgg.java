@@ -2,6 +2,9 @@ package example;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -13,13 +16,23 @@ import java.util.*;
 
 public class MemorySpamAgg {
     // Assuming each value takes <= 100 bytes
-    static final long DEFAULT_WEIGHT = 100;
+//    static final long DEFAULT_WEIGHT = 100;
+    static final long DEFAULT_WEIGHT = 0;
 
-    static public class InitScriptFactory implements ScriptedMetricAggContexts.InitScript.Factory {
-        CircuitBreaker circuitBreaker;
+    static protected class MemorySpamAggScriptFactory {
+        protected CircuitBreaker circuitBreaker;
+        protected BigArrays bigArrays;
 
-        InitScriptFactory(CircuitBreakerService circuitBreakerService) {
+        protected MemorySpamAggScriptFactory(CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
             circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+            this.bigArrays = bigArrays;
+        }
+    }
+
+    static public class InitScriptFactory extends MemorySpamAggScriptFactory implements ScriptedMetricAggContexts.InitScript.Factory {
+
+        InitScriptFactory(CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
+            super(circuitBreakerService, bigArrays);
         }
 
         @Override
@@ -32,29 +45,31 @@ public class MemorySpamAgg {
                     state["vals-size"] - size of state["vals"], so that it's size can be known without referencing
                                           the ArrayList. This is needed to reclaim CB.
                      */
-                    state.put("vals", new ArrayList<>() {
-                        @Override
-                        public void finalize() {
-                            long sz = XContentMapValues.nodeIntegerValue(state.get("vals-size"), 0);
-                            circuitBreaker.addWithoutBreaking(-sz * DEFAULT_WEIGHT);
-                            state.put("vals-size", 0L);
-                        }
-                    });
+                    ObjectArray<Object> objectArray = bigArrays.newObjectArray(0);
+                    state.put("vals", objectArray);
+//                    state.put("vals", new ArrayList<>() {
+//                        @Override
+//                        public void finalize() {
+//                            long sz = XContentMapValues.nodeIntegerValue(state.get("vals-size"), 0);
+//                            circuitBreaker.addWithoutBreaking(-sz * DEFAULT_WEIGHT);
+//                            state.put("vals-size", 0L);
+//                        }
+//                    });
                     state.put("vals-size", 0L);
                 }
             };
         }
     }
 
-    static public class MapScriptFactory implements ScriptedMetricAggContexts.MapScript.Factory {
-        CircuitBreaker circuitBreaker;
+    static public class MapScriptFactory extends MemorySpamAggScriptFactory implements ScriptedMetricAggContexts.MapScript.Factory {
 
-        MapScriptFactory(CircuitBreakerService circuitBreakerService) {
-            circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        MapScriptFactory(CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
+            super(circuitBreakerService, bigArrays);
         }
 
         @Override
         public ScriptedMetricAggContexts.MapScript.LeafFactory newFactory(Map<String, Object> params, Map<String, Object> state, SearchLookup searchLookup) {
+
             return leafReaderContext -> new ScriptedMetricAggContexts.MapScript(params, state, searchLookup, leafReaderContext) {
                 final LeafSearchLookup lookup = searchLookup.getLeafSearchLookup(leafReaderContext);
 
@@ -70,13 +85,20 @@ public class MemorySpamAgg {
                             lookup.doc(),
                             XContentMapValues.nodeStringValue(params.get("field"))
                     );
-                    ArrayList<Object> vals = (ArrayList<Object>) state.get("vals");
+                    ObjectArray<Object> objectArray = (ObjectArray<Object>) state.get("vals");
                     for (Object value : scriptDocValues) {
-                        circuitBreaker.addEstimateBytesAndMaybeBreak(DEFAULT_WEIGHT, "my-script/my-expand-map");
-                        long sz = (long) state.get("vals-size");
-                        state.put("vals-size", sz + 1);
-                        vals.addAll(expand(value));
+                        long size = (long) state.get("vals-size");
+                        objectArray = bigArrays.grow(objectArray, size + 1);
+                        objectArray.set(size, value);
+                        state.put("vals-size", size + 1);
                     }
+//                    ArrayList<Object> vals = (ArrayList<Object>) state.get("vals");
+//                    for (Object value : scriptDocValues) {
+//                        circuitBreaker.addEstimateBytesAndMaybeBreak(DEFAULT_WEIGHT, "my-script/my-expand-map");
+//                        long sz = (long) state.get("vals-size");
+//                        state.put("vals-size", sz + 1);
+//                        vals.addAll(expand(value));
+//                    }
                 }
             };
         }
@@ -90,23 +112,27 @@ public class MemorySpamAgg {
         }
     }
 
-    static public class CombineScriptFactory implements ScriptedMetricAggContexts.CombineScript.Factory {
+    static public class CombineScriptFactory extends MemorySpamAggScriptFactory implements ScriptedMetricAggContexts.CombineScript.Factory {
+
+       CombineScriptFactory(CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
+            super(circuitBreakerService, bigArrays);
+        }
+
         @Override
         public ScriptedMetricAggContexts.CombineScript newInstance(Map<String, Object> params, Map<String, Object> state) {
             return new ScriptedMetricAggContexts.CombineScript(params, state) {
                 @Override
                 public Object execute() {
-                    return state.get("vals");
+                    return Arrays.asList(state.get("vals"), state.get("vals-size"));
                 }
             };
         }
     }
 
-    static public class ReduceScriptFactory implements ScriptedMetricAggContexts.ReduceScript.Factory {
-        CircuitBreaker circuitBreaker;
+    static public class ReduceScriptFactory extends MemorySpamAggScriptFactory implements ScriptedMetricAggContexts.ReduceScript.Factory {
 
-        ReduceScriptFactory(CircuitBreakerService cbs) {
-            circuitBreaker = cbs.getBreaker(CircuitBreaker.REQUEST);
+        ReduceScriptFactory(CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
+            super(circuitBreakerService, bigArrays);
         }
 
         @Override
@@ -115,19 +141,34 @@ public class MemorySpamAgg {
                 @Override
                 public Object execute() {
                     if (states.isEmpty())
-                        return new ArrayList<>();
-                    final long[] size = {0L};
-                    List<Object> ret = new ArrayList() {
-                        @Override
-                        public void finalize() {
-                            circuitBreaker.addWithoutBreaking(-size[0] * DEFAULT_WEIGHT);
-                        }
-                    };
+//                        return new ArrayList<>();
+                        return bigArrays.newObjectArray(0);
+//                    final long[] size = {0L};
+//                    List<Object> ret = new ArrayList() {
+//                        @Override
+//                        public void finalize() {
+//                            circuitBreaker.addWithoutBreaking(-size[0] * DEFAULT_WEIGHT);
+//                        }
+//                    };
+//                    for (Object state : states) {
+//                        List<Object> vals = (ArrayList<Object>) state;
+//                        circuitBreaker.addEstimateBytesAndMaybeBreak(vals.size() * DEFAULT_WEIGHT, "my-script/my-expand-reduce");
+//                        size[0] += vals.size();
+//                        ret.addAll(vals);
+//                    }
+                    long size = 0;
+                    ObjectArray<Object> ret = bigArrays.newObjectArray(size);
                     for (Object state : states) {
-                        List<Object> vals = (ArrayList<Object>) state;
-                        circuitBreaker.addEstimateBytesAndMaybeBreak(vals.size() * DEFAULT_WEIGHT, "my-script/my-expand-reduce");
-                        size[0] += vals.size();
-                        ret.addAll(vals);
+                        List<Object> stateList = (List<Object>) state;
+                        ObjectArray<Object> vals = (ObjectArray<Object>) stateList.get(0);
+                        long valsSize = (long) stateList.get(1);
+
+                        ret = bigArrays.grow(ret, size + valsSize);
+                        for (long i = size; i <= size + valsSize; i++) {
+                            ret.set(i, vals.get(i - size));
+                        }
+                        size += valsSize;
+                        vals.close();
                     }
                     return ret;
                 }
