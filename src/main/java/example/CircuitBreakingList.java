@@ -10,7 +10,7 @@ import java.util.*;
  * A wrapper around a List<E> that updates a CircuitBreaker, every time the list's size changes.
  * This uses ArrayList<E> internally. Override newInternalList() to use other implementations of List<E>
  */
-public class CircuitBreakingList<E> extends CircuitBreakingCollection<E> implements List<E>, Releasable {
+public class CircuitBreakingList<E> extends CircuitBreakingCollection<E> implements List<E> {
 
     List<E> list;
 

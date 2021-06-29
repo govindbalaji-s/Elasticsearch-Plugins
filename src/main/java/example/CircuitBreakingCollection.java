@@ -6,11 +6,10 @@ import org.elasticsearch.common.lease.Releasable;
 
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 
 public abstract class CircuitBreakingCollection<E> implements Collection<E>, Releasable {
-    private CircuitBreaker circuitBreaker;
-    private Collection<E> collection;
+    private final CircuitBreaker circuitBreaker;
+    private final Collection<E> collection;
     private long requestBytesAdded = 0;
     private long prevSize = 0;
     private long perElementSize = -1;

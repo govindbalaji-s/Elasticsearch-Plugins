@@ -1,6 +1,9 @@
 target/
 bin/
 !.mvn/wrapper/maven-wrapper.jar
+*.class
+.gradle/
+build/
 
 ### IntelliJ IDEA ###
 .idea
