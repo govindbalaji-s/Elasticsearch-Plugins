@@ -32,30 +32,18 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
         this.requestBytesAdded += bytes;
     }
 
-    protected long elementSize(E e) {
-        return RamUsageEstimator.sizeOfObject(e, 0) + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+    protected void updateBreaker() {
+        long sizeDiff = collection.size() - prevSize;
+        prevSize = collection.size();
+        if (sizeDiff == 0) {
+            return;
+        }
+        if (perElementSize == -1) {
+            assert this.size() > 0 : "Size should have changed from 0";
+            perElementSize = RamUsageEstimator.sizeOfObject(collection.toArray()[0], 0) + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+        }
+        addToBreaker(sizeDiff * perElementSize);
     }
-
-    protected void addToBreaker(E e) {
-        addToBreaker(elementSize(e));
-    }
-
-    protected void removeFromBreaker(E e) {
-        addToBreaker(-elementSize(e));
-    }
-
-//    protected void updateBreaker() {
-//        long sizeDiff = collection.size() - prevSize;
-//        prevSize = collection.size();
-//        if (sizeDiff == 0) {
-//            return;
-//        }
-//        if (perElementSize == -1) {
-//            assert this.size() > 0 : "Size should have changed from 0";
-//            perElementSize = RamUsageEstimator.sizeOfObject(collection.toArray()[0], 0) + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-//        }
-//        addToBreaker(sizeDiff * perElementSize);
-//    }
     @Override
     public int size() {
         return collection.size();
@@ -88,20 +76,20 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
 
     @Override
     public boolean add(E e) {
-        boolean ret = collection.add(e);
-        if (ret) {
-            addToBreaker(e);
+        try {
+            return collection.add(e);
+        } finally {
+            updateBreaker();
         }
-        return ret;
     }
 
     @Override
     public boolean remove(Object o) {
-        boolean ret = collection.remove(o);
-        if (ret) {
-            removeFromBreaker((E) o);
+        try {
+            return collection.remove(o);
+        } finally {
+            updateBreaker();
         }
-        return ret;
     }
 
     @Override
@@ -111,20 +99,20 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
 
     @Override
     public boolean addAll(Collection<? extends E> collection) {
-        boolean ret = false;
-        for (E e : collection) {
-            ret = add(e) || ret;
+        try {
+            return this.collection.addAll(collection);
+        } finally {
+            updateBreaker();
         }
-        return ret;
     }
 
     @Override
     public boolean removeAll(Collection<?> collection) {
-        boolean ret = false;
-        for (Object o : collection) {
-            ret = remove(o) || ret;
+        try {
+            return this.collection.removeAll(collection);
+        } finally {
+            updateBreaker();
         }
-        return ret;
     }
 
     @Override
