@@ -32,7 +32,11 @@ public class CircuitBreakingList<E> extends CircuitBreakingCollection<E> impleme
 
     @Override
     public boolean addAll(int i, Collection<? extends E> collection) {
-        return false;
+        try {
+            return list.addAll(i, collection);
+        } finally {
+            updateBreaker();
+        }
     }
 
     @Override
@@ -86,5 +90,19 @@ public class CircuitBreakingList<E> extends CircuitBreakingCollection<E> impleme
     @Override
     public List<E> subList(int i, int i1) {
         return list.subList(i, i1);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+        CircuitBreakingList<?> that = (CircuitBreakingList<?>) o;
+        return Objects.equals(list, that.list);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), list);
     }
 }

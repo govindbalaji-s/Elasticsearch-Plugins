@@ -6,6 +6,8 @@ import org.elasticsearch.common.lease.Releasable;
 
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Objects;
+import java.util.function.Predicate;
 
 public abstract class CircuitBreakingCollection<E> implements Collection<E>, Releasable {
     private final CircuitBreaker circuitBreaker;
@@ -116,6 +118,15 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
     }
 
     @Override
+    public boolean removeIf(Predicate<? super E> filter) {
+        try {
+            return collection.removeIf(filter);
+        } finally {
+            updateBreaker();
+        }
+    }
+
+    @Override
     public boolean retainAll(Collection<?> collection) {
         try {
             return this.collection.retainAll(collection);
@@ -131,6 +142,23 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
         } finally {
             updateBreaker();
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CircuitBreakingCollection<?> that = (CircuitBreakingCollection<?>) o;
+        return requestBytesAdded == that.requestBytesAdded &&
+                prevSize == that.prevSize &&
+                perElementSize == that.perElementSize &&
+                Objects.equals(circuitBreaker, that.circuitBreaker) &&
+                Objects.equals(collection, that.collection);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(circuitBreaker, collection, requestBytesAdded, prevSize, perElementSize);
     }
 
     @Override

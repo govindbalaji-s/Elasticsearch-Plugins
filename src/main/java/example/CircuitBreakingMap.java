@@ -130,4 +130,21 @@ public class CircuitBreakingMap<K, V> implements Map<K, V>, Releasable {
     public Set<Entry<K, V>> entrySet() {
         return map.entrySet();
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CircuitBreakingMap<?, ?> that = (CircuitBreakingMap<?, ?>) o;
+        return requestBytesAdded == that.requestBytesAdded &&
+                prevSize == that.prevSize &&
+                perElementSize == that.perElementSize &&
+                Objects.equals(circuitBreaker, that.circuitBreaker) &&
+                Objects.equals(map, that.map);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(circuitBreaker, map, requestBytesAdded, prevSize, perElementSize);
+    }
 }
