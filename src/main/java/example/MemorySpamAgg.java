@@ -40,7 +40,7 @@ public class MemorySpamAgg {
                     /*
                     state["vals"] is the ArrayList of all values of params["field"] field in this shard.
                      */
-                    List<Object> vals = new CircuitBreakingList<>(circuitBreaker);
+                    List<Object> vals = new FinalizableCircuitBreakingList<>(circuitBreaker);
                     state.put("vals", vals);
                 }
             };
@@ -114,11 +114,11 @@ public class MemorySpamAgg {
             return new ScriptedMetricAggContexts.ReduceScript(params, states) {
                 @Override
                 public Object execute() {
-                    List<Object> ret = new CircuitBreakingList<>(circuitBreaker);
-                    this.releaseOnClean((Releasable) ret);
+                    if (states.isEmpty())
+                        return new FinalizableCircuitBreakingList<Object>(circuitBreaker);
+                    List<Object> ret = new FinalizableCircuitBreakingList<>(circuitBreaker);
                     for(Object state: states) {
                         List<Object> vals = (List<Object>) state;
-                        this.releaseOnClean((Releasable) vals);
                         ret.addAll(vals);
                     }
                     return ret;
