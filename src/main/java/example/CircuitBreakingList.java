@@ -13,9 +13,19 @@ import java.util.*;
 public class CircuitBreakingList<E> extends CircuitBreakingCollection<E> implements List<E> {
 
     List<E> list;
+    private static final int DEFAULT_CAPACITY = -1;
+    int capacity = DEFAULT_CAPACITY;
 
     public CircuitBreakingList(CircuitBreaker circuitBreaker) {
         super(circuitBreaker);
+    }
+
+    public CircuitBreakingList(CircuitBreaker circuitBreaker, int initialCapacity) {
+        super(circuitBreaker);
+        if (capacity < 0) {
+            throw new IllegalArgumentException("Illegal Capacity: " + initialCapacity);
+        }
+        capacity = initialCapacity;
     }
 
     @Override
@@ -24,9 +34,34 @@ public class CircuitBreakingList<E> extends CircuitBreakingCollection<E> impleme
         return list;
     }
 
+    @Override
+    protected long sizeToReserve() {
+        if (size() <= capacity) {
+            return capacity;
+        }
+        // Copy pasted from ArrayList.java(JBR - 11) so that capacity grows same as ArrayList's internal capacity
+        int minCapacity = size();
+        if (capacity == DEFAULT_CAPACITY) {
+            capacity = Math.max(10, minCapacity);
+        } else {
+            int newCapacity = capacity + (capacity >> 1);
+            if (newCapacity - minCapacity <= 0) {
+                capacity = minCapacity;
+            } else {
+                capacity = newCapacity - 2147483639 <= 0 ? newCapacity : (minCapacity > 2147483639 ? 2147483647 : 2147483639);
+            }
+        }
+        return capacity;
+    }
+
     protected List<E> newInternalList() {
-        List<E> list = new ArrayList<>();
-        addToBreaker(RamUsageEstimator.sizeOfObject(list, 0));
+        List<E> list;
+        if (capacity == DEFAULT_CAPACITY) {
+            list = new ArrayList<>();
+        } else {
+            list = new ArrayList<>(capacity);
+        }
+        addToBreaker(RamUsageEstimator.sizeOfObject(list, 0), false);
         return list;
     }
 

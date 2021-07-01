@@ -97,7 +97,9 @@ public class MemorySpamAgg {
             return new ScriptedMetricAggContexts.CombineScript(params, state) {
                 @Override
                 public Object execute() {
-                    return state.get("vals");
+                    CircuitBreakingList<Object> list = (CircuitBreakingList<Object>) state.get("vals");
+                    list.shrinkReservationToSize();
+                    return list;
                 }
             };
         }
@@ -116,11 +118,12 @@ public class MemorySpamAgg {
                 public Object execute() {
                     if (states.isEmpty())
                         return new FinalizableCircuitBreakingList<Object>(circuitBreaker);
-                    List<Object> ret = new FinalizableCircuitBreakingList<>(circuitBreaker);
+                    CircuitBreakingList<Object> ret = new FinalizableCircuitBreakingList<>(circuitBreaker);
                     for(Object state: states) {
                         List<Object> vals = (List<Object>) state;
                         ret.addAll(vals);
                     }
+                    ret.shrinkReservationToSize();
                     return ret;
                 }
             };

@@ -16,59 +16,9 @@ repositories {
 dependencies {
 //    compileOnly group: 'org.elasticsearch', name: 'elasticsearch', version: '7.11.1'
         compile fileTree(dir: '/Users/govindbalajis/Documents/elasticsearch/build/distribution/local/elasticsearch-7.11.0-SNAPSHOT/lib', include: ['*.jar'])
-//    compile files('libs/elasticsearch-x-content-7.11.0-SNAPSHOT.jar')
-//    compile files('libs/HdrHistogram-2.1.9.jar')
-//    compile files('libs/log4j-core-2.11.1.jar')
-//    compile files('libs/ecs-logging-core-0.1.3.jar')
-//    compile files('libs/log4j2-ecs-layout-0.1.3.jar')
-//    compile files('libs/elasticsearch-7.11.0-SNAPSHOT.jar')
-//    compile files('libs/lucene-analyzers-common-8.7.0.jar')
-//    compile files('libs/elasticsearch-cli-7.11.0-SNAPSHOT.jar')
-//    compile files('libs/lucene-backward-codecs-8.7.0.jar')
-//    compile files('libs/elasticsearch-core-7.11.0-SNAPSHOT.jar')
-//    compile files('libs/lucene-core-8.7.0.jar')
-//    compile files('libs/elasticsearch-geo-7.11.0-SNAPSHOT.jar')
-//    compile files('libs/lucene-grouping-8.7.0.jar')
-//    compile files('libs/elasticsearch-launchers-7.11.0-SNAPSHOT.jar')
-//    compile files('libs/lucene-highlighter-8.7.0.jar')
-//    compile files('libs/elasticsearch-plugin-classloader-7.11.0-SNAPSHOT.jar')
-//    compile files('libs/lucene-join-8.7.0.jar')
-//    compile files('libs/elasticsearch-secure-sm-7.11.0-SNAPSHOT.jar')
-//    compile files('libs/lucene-memory-8.7.0.jar')
-//    compile files('libs/elasticsearch-x-content-7.11.0-SNAPSHOT.jar')
-//    compile files('libs/lucene-misc-8.7.0.jar')
-//    compile files('libs/hppc-0.8.1.jar')
-//    compile files('libs/lucene-queries-8.7.0.jar')
-//    compile files('libs/jackson-core-2.10.4.jar')
-//    compile files('libs/lucene-queryparser-8.7.0.jar')
-//    compile files('libs/jackson-dataformat-cbor-2.10.4.jar')
-//    compile files('libs/lucene-sandbox-8.7.0.jar')
-//    compile files('libs/jackson-dataformat-smile-2.10.4.jar')
-//    compile files('libs/lucene-spatial-extras-8.7.0-snapshot-ddc238e5df8.jar')
-//    compile files('libs/jackson-dataformat-yaml-2.10.4.jar')
-//    compile files('libs/lucene-spatial3d-8.7.0-snapshot-ddc238e5df8.jar')
-//    compile files('libs/java-version-checker-7.11.0-SNAPSHOT.jar')
-//    compile files('libs/lucene-suggest-8.7.0-snapshot-ddc238e5df8.jar')
-//    compile files('libs/jna-5.5.0.jar')
-//    compile files('libs/snakeyaml-1.26.jar')
-//    compile files('libs/joda-time-2.10.4.jar')
-//    compile files('libs/spatial4j-0.7.jar')
-//    compile files('libs/jopt-simple-5.0.2.jar')
-//    compile files('libs/t-digest-3.2.jar')
-//    compile files('libs/jts-core-1.15.0.jar')
-//    compile files('libs/log4j-api-2.11.1.jar')
-
-//    implementation "org.apache.httpcomponents:httpclient:4.5.2"
-//    implementation "org.apache.httpcomponents:httpcore:4.4.4"
-//    implementation "org.apache.httpcomponents:httpasyncclient:4.1.4"
-//    implementation "org.apache.httpcomponents:httpcore-nio:4.4.12"
-
-//    implementation "commons-codec:commons-codec:1.11"
-//    implementation "commons-logging:commons-logging:1.1.3"
-//    compile files('/Users/govindbalajis/Documents/elasticsearch/client/rest/build/distributions/elasticsearch-rest-client-7.11.0-SNAPSHOT.jar')
+    implementation("com.google.guava:guava:30.1.1-jre")
     implementation 'org.json:json:20210307'
     implementation group: 'org.elasticsearch.client', name:'elasticsearch-rest-client', version:'7.11.0'
-//    implementation group: 'org.elasticsearch.client', name: 'elasticsearch-rest-high-level-client', version: '7.11.0'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
 }

@@ -1,5 +1,7 @@
 package example;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
@@ -11,10 +13,11 @@ import java.util.function.Predicate;
 
 public abstract class CircuitBreakingCollection<E> implements Collection<E>, Releasable {
     private final CircuitBreaker circuitBreaker;
-    private final Collection<E> collection;
+    protected final Collection<E> collection;
     private long requestBytesAdded = 0;
-    private long prevSize = 0;
+    protected long reservedSize = 0;
     private long perElementSize = -1;
+    private static final Logger logger = LogManager.getLogger(CircuitBreakingCollection.class);
     // bytes for the above fields themselves aren't counted.
 
     public CircuitBreakingCollection(CircuitBreaker circuitBreaker) {
@@ -25,8 +28,13 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
 
     protected abstract Collection<E> newInternalCollection();
 
-    protected void addToBreaker(long bytes) {
-        if (bytes >= 0) {
+    /**
+     * Return the size to reserve in CB, when the internal collection size changes.
+     */
+    protected abstract long sizeToReserve();
+
+    protected void addToBreaker(long bytes, boolean checkBreaker) {
+        if (bytes >= 0 && checkBreaker) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<CircuitBreakingList>");
         } else {
             circuitBreaker.addWithoutBreaking(bytes);
@@ -35,8 +43,15 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
     }
 
     protected void updateBreaker() {
-        long sizeDiff = collection.size() - prevSize;
-        prevSize = collection.size();
+        long newReservedSize = sizeToReserve();
+        assert newReservedSize >= reservedSize : "Can only grow, not shrink";
+        updateBreaker(newReservedSize);
+    }
+
+    protected void updateBreaker(long newReservedSize) {
+        long sizeDiff = newReservedSize - reservedSize;
+        // Since this method is called after collection already grew, update reservedSize even if breaking.
+        reservedSize = newReservedSize;
         if (sizeDiff == 0) {
             return;
         }
@@ -44,8 +59,16 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
             assert this.size() > 0 : "Size should have changed from 0";
             perElementSize = RamUsageEstimator.sizeOfObject(collection.toArray()[0], 0) + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
         }
-        addToBreaker(sizeDiff * perElementSize);
+        // If it breaks, then the already created data will not be accounted for.
+        // So we first add without breaking, and then check.
+        addToBreaker(sizeDiff * perElementSize, false);
+        addToBreaker(0, true);
     }
+
+    public void shrinkReservationToSize() {
+        updateBreaker(size());
+    }
+
     @Override
     public int size() {
         return collection.size();
@@ -140,7 +163,8 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
         try {
             collection.clear();
         } finally {
-            updateBreaker();
+            logger.info("I am reserving none from " + reservedSize);
+            updateBreaker(0);
         }
     }
 
@@ -150,7 +174,7 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
         if (o == null || getClass() != o.getClass()) return false;
         CircuitBreakingCollection<?> that = (CircuitBreakingCollection<?>) o;
         return requestBytesAdded == that.requestBytesAdded &&
-                prevSize == that.prevSize &&
+                reservedSize == that.reservedSize &&
                 perElementSize == that.perElementSize &&
                 Objects.equals(circuitBreaker, that.circuitBreaker) &&
                 Objects.equals(collection, that.collection);
@@ -158,13 +182,11 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
 
     @Override
     public int hashCode() {
-        return Objects.hash(circuitBreaker, collection, requestBytesAdded, prevSize, perElementSize);
+        return Objects.hash(circuitBreaker, collection, requestBytesAdded, reservedSize, perElementSize);
     }
 
     @Override
     public void close() {
-        collection.clear();
-        addToBreaker(-requestBytesAdded);
-        requestBytesAdded = 0;
+        clear();
     }
 }
