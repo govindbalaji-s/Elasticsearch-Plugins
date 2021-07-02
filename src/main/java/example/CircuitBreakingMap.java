@@ -97,8 +97,9 @@ public class CircuitBreakingMap<K, V> implements Map<K, V>, Releasable {
             Optional<Entry<K, V>> optionalEntry = map.entrySet().stream().findAny();
             assert this.size() > 0 && optionalEntry.isPresent(): "Size should have changed from 0";
             Entry<K, V> entry = optionalEntry.get();
-            perElementSize = RamUsageEstimator.shallowSizeOf(entry) + RamUsageEstimator.sizeOfObject(entry.getKey(), 0)
-                    + RamUsageEstimator.sizeOfObject(entry.getValue(), 0);
+            // there will never be elements for capacity - threshold elements
+            perElementSize = RamUsageEstimator.shallowSizeOf(entry) + (int)((1 - loadFactor) * (RamUsageEstimator.sizeOfObject(entry.getKey(), 0)
+                    + RamUsageEstimator.sizeOfObject(entry.getValue(), 0)));
         }
         // If it breaks, then the already created data will not be accounted for.
         // So we first add without breaking, and then check.
