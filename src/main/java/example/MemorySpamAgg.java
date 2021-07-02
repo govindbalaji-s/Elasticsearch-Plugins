@@ -40,8 +40,11 @@ public class MemorySpamAgg {
                     /*
                     state["vals"] is the ArrayList of all values of params["field"] field in this shard.
                      */
-                    List<Object> vals = new FinalizableCircuitBreakingList<>(circuitBreaker);
-                    state.put("vals", vals);
+//                    List<Object> vals = new FinalizableCircuitBreakingList<>(circuitBreaker);
+//                    state.put("vals", vals);
+
+                    Map<Object, Object> mapvals = new FinalizableCircuitBreakingMap<>(circuitBreaker);
+                    state.put("mapvals", mapvals);
                 }
             };
         }
@@ -71,8 +74,13 @@ public class MemorySpamAgg {
                             lookup.doc(),
                             XContentMapValues.nodeStringValue(params.get("field"))
                     );
-                    List<Object> list = (List<Object>) state.get("vals");
-                    list.addAll(scriptDocValues);
+//                    List<Object> list = (List<Object>) state.get("vals");
+//                    list.addAll(scriptDocValues);
+
+                    Map<Object, Object> map = (Map<Object, Object>) state.get("mapvals");
+                    for(Object o : scriptDocValues) {
+                        map.put(o, o);
+                    }
                 }
             };
         }
@@ -97,9 +105,11 @@ public class MemorySpamAgg {
             return new ScriptedMetricAggContexts.CombineScript(params, state) {
                 @Override
                 public Object execute() {
-                    CircuitBreakingList<Object> list = (CircuitBreakingList<Object>) state.get("vals");
-                    list.shrinkReservationToSize();
-                    return list;
+//                    CircuitBreakingList<Object> list = (CircuitBreakingList<Object>) state.get("vals");
+//                    list.shrinkReservationToSize();
+//                    return list;
+
+                    return (Map<Object, Object>) state.get("mapvals");
                 }
             };
         }
@@ -116,14 +126,19 @@ public class MemorySpamAgg {
             return new ScriptedMetricAggContexts.ReduceScript(params, states) {
                 @Override
                 public Object execute() {
-                    if (states.isEmpty())
-                        return new FinalizableCircuitBreakingList<Object>(circuitBreaker);
-                    CircuitBreakingList<Object> ret = new FinalizableCircuitBreakingList<>(circuitBreaker);
+////                    CircuitBreakingList<Object> ret = new FinalizableCircuitBreakingList<>(circuitBreaker);
+////                    for(Object state: states) {
+////                        List<Object> vals = (List<Object>) state;
+////                        ret.addAll(vals);
+////                    }
+////                    ret.shrinkReservationToSize();
+////                    return ret;
+
+                    Map<Object, Object> ret = new FinalizableCircuitBreakingMap<>(circuitBreaker);
                     for(Object state: states) {
-                        List<Object> vals = (List<Object>) state;
-                        ret.addAll(vals);
+                        Map<Object, Object> mapvals = (Map<Object, Object>) state;
+                        ret.putAll(mapvals);
                     }
-                    ret.shrinkReservationToSize();
                     return ret;
                 }
             };

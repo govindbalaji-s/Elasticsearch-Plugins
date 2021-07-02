@@ -35,7 +35,7 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
 
     protected void addToBreaker(long bytes, boolean checkBreaker) {
         if (bytes >= 0 && checkBreaker) {
-            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<CircuitBreakingList>");
+            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<CircuitBreakingCollection>");
         } else {
             circuitBreaker.addWithoutBreaking(bytes);
         }
@@ -63,10 +63,6 @@ public abstract class CircuitBreakingCollection<E> implements Collection<E>, Rel
         // So we first add without breaking, and then check.
         addToBreaker(sizeDiff * perElementSize, false);
         addToBreaker(0, true);
-    }
-
-    public void shrinkReservationToSize() {
-        updateBreaker(size());
     }
 
     @Override

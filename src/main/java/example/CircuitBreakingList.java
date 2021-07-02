@@ -65,6 +65,15 @@ public class CircuitBreakingList<E> extends CircuitBreakingCollection<E> impleme
         return list;
     }
 
+    public void shrinkReservationToSize() {
+        if (list instanceof ArrayList) {
+            ((ArrayList<E>) list).trimToSize();
+            updateBreaker(size());
+        } else {
+            throw new UnsupportedOperationException("Can not shrink internal list");
+        }
+    }
+
     @Override
     public boolean addAll(int i, Collection<? extends E> collection) {
         try {
@@ -133,11 +142,12 @@ public class CircuitBreakingList<E> extends CircuitBreakingCollection<E> impleme
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         CircuitBreakingList<?> that = (CircuitBreakingList<?>) o;
-        return Objects.equals(list, that.list);
+        return Objects.equals(list, that.list)
+                && Objects.equals(capacity, that.capacity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), list);
+        return Objects.hash(super.hashCode(), list, capacity);
     }
 }
