@@ -2,7 +2,6 @@ package example;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.lease.Releasable;
 
 import java.util.*;
 
@@ -26,6 +25,11 @@ public class CircuitBreakingList<E> extends CircuitBreakingCollection<E> impleme
             throw new IllegalArgumentException("Illegal Capacity: " + initialCapacity);
         }
         capacity = initialCapacity;
+    }
+
+    public CircuitBreakingList(CircuitBreaker circuitBreaker, Collection<? extends E> collection) {
+        this(circuitBreaker, collection.size());
+        addAll(collection);
     }
 
     @Override
