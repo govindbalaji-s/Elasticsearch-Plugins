@@ -2,9 +2,11 @@ package example;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.breakingcollections.CBUtilsFactory;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -48,6 +50,8 @@ public class MyGroupByPlugin extends Plugin implements SearchPlugin, ScriptPlugi
             @Override
             public <FactoryType> FactoryType compile(String name, String code, ScriptContext<FactoryType> scriptContext, Map<String, String> params) {
                 ScriptFactory factory = null;
+                CircuitBreaker circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+                CBUtilsFactory cbFactory = new CBUtilsFactory(circuitBreaker);
                 switch(code) {
                     case "my-sum":
                         factory = new MySumScriptFactory();
@@ -56,16 +60,16 @@ public class MyGroupByPlugin extends Plugin implements SearchPlugin, ScriptPlugi
                         factory = new MyJoinScriptFactory(esClient, circuitBreakerService);
                         break;
                     case "my-expand-init":
-                        factory = new MemorySpamAgg.InitScriptFactory(circuitBreakerService, bigArrays);
+                        factory = new MemorySpamAgg.InitScriptFactory(cbFactory, bigArrays);
                         break;
                     case "my-expand-map":
-                        factory = new MemorySpamAgg.MapScriptFactory(circuitBreakerService, bigArrays);
+                        factory = new MemorySpamAgg.MapScriptFactory(cbFactory, bigArrays);
                         break;
                     case "my-expand-combine":
-                        factory = new MemorySpamAgg.CombineScriptFactory(circuitBreakerService, bigArrays);
+                        factory = new MemorySpamAgg.CombineScriptFactory(cbFactory, bigArrays);
                         break;
                     case "my-expand-reduce":
-                        factory = new MemorySpamAgg.ReduceScriptFactory(circuitBreakerService, bigArrays);
+                        factory = new MemorySpamAgg.ReduceScriptFactory(cbFactory, bigArrays);
                         break;
                     default:
                         throw new IllegalArgumentException("unknown script name");

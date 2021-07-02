@@ -5,6 +5,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.common.util.breakingcollections.CBUtilsFactory;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -17,19 +18,19 @@ import java.util.*;
 public class MemorySpamAgg {
 
     static protected class MemorySpamAggScriptFactory {
-        protected CircuitBreaker circuitBreaker;
+        protected CBUtilsFactory cbFactory;
         protected BigArrays bigArrays;
 
-        protected MemorySpamAggScriptFactory(CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
-            circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        protected MemorySpamAggScriptFactory(CBUtilsFactory cbFactory, BigArrays bigArrays) {
+            this.cbFactory = cbFactory;
             this.bigArrays = bigArrays;
         }
     }
 
     static public class InitScriptFactory extends MemorySpamAggScriptFactory implements ScriptedMetricAggContexts.InitScript.Factory {
 
-        InitScriptFactory(CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
-            super(circuitBreakerService, bigArrays);
+        InitScriptFactory(CBUtilsFactory cbFactory, BigArrays bigArrays) {
+            super(cbFactory, bigArrays);
         }
 
         @Override
@@ -40,10 +41,10 @@ public class MemorySpamAgg {
                     /*
                     state["vals"] is the ArrayList of all values of params["field"] field in this shard.
                      */
-//                    List<Object> vals = new FinalizableCircuitBreakingList<>(circuitBreaker);
+//                    List<Object> vals = cbFactory.newFinalizingArrayList();
 //                    state.put("vals", vals);
 
-                    Map<Object, Object> mapvals = new FinalizableCircuitBreakingMap<>(circuitBreaker);
+                    Map<Object, Object> mapvals = cbFactory.newFinalizingHashMap();
                     state.put("mapvals", mapvals);
                 }
             };
@@ -52,8 +53,8 @@ public class MemorySpamAgg {
 
     static public class MapScriptFactory extends MemorySpamAggScriptFactory implements ScriptedMetricAggContexts.MapScript.Factory {
 
-        MapScriptFactory(CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
-            super(circuitBreakerService, bigArrays);
+        MapScriptFactory(CBUtilsFactory cbFactory, BigArrays bigArrays) {
+            super(cbFactory, bigArrays);
         }
 
         @Override
@@ -96,9 +97,9 @@ public class MemorySpamAgg {
 
     static public class CombineScriptFactory extends MemorySpamAggScriptFactory implements ScriptedMetricAggContexts.CombineScript.Factory {
 
-       CombineScriptFactory(CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
-            super(circuitBreakerService, bigArrays);
-        }
+       CombineScriptFactory(CBUtilsFactory cbFactory, BigArrays bigArrays) {
+           super(cbFactory, bigArrays);
+       }
 
         @Override
         public ScriptedMetricAggContexts.CombineScript newInstance(Map<String, Object> params, Map<String, Object> state) {
@@ -117,8 +118,8 @@ public class MemorySpamAgg {
 
     static public class ReduceScriptFactory extends MemorySpamAggScriptFactory implements ScriptedMetricAggContexts.ReduceScript.Factory {
 
-        ReduceScriptFactory(CircuitBreakerService circuitBreakerService, BigArrays bigArrays) {
-            super(circuitBreakerService, bigArrays);
+        ReduceScriptFactory(CBUtilsFactory cbFactory, BigArrays bigArrays) {
+            super(cbFactory, bigArrays);
         }
 
         @Override
@@ -126,7 +127,7 @@ public class MemorySpamAgg {
             return new ScriptedMetricAggContexts.ReduceScript(params, states) {
                 @Override
                 public Object execute() {
-////                    CircuitBreakingList<Object> ret = new FinalizableCircuitBreakingList<>(circuitBreaker);
+////                    CircuitBreakingList<Object> ret = cbFactory.newFinalizingArrayList();
 ////                    for(Object state: states) {
 ////                        List<Object> vals = (List<Object>) state;
 ////                        ret.addAll(vals);
@@ -134,7 +135,7 @@ public class MemorySpamAgg {
 ////                    ret.shrinkReservationToSize();
 ////                    return ret;
 
-                    Map<Object, Object> ret = new FinalizableCircuitBreakingMap<>(circuitBreaker);
+                    Map<Object, Object> ret = cbFactory.newFinalizingHashMap();
                     for(Object state: states) {
                         Map<Object, Object> mapvals = (Map<Object, Object>) state;
                         ret.putAll(mapvals);
